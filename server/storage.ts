@@ -1,212 +1,260 @@
-import { users, courses, applications, conversations, messages, verificationCodes, type User, type InsertUser, type Course, type InsertCourse, type Application, type InsertApplication, type Conversation, type InsertConversation, type Message, type InsertMessage, type InsertVerificationCode, type VerificationCode } from "@shared/schema";
-import { db } from "./db";
-import { eq, desc, or } from "drizzle-orm";
+import {
+  User,
+  Course,
+  Application,
+  Conversation,
+  Message,
+  VerificationCode,
+  type IUser,
+  type ICourse,
+  type IApplication,
+  type IConversation,
+  type IMessage,
+  type IVerificationCode,
+  type InsertUser,
+  type InsertCourse,
+  type InsertApplication,
+  type InsertConversation,
+  type InsertMessage,
+  type InsertVerificationCode,
+  type UserDoc,
+  type CourseDoc,
+  type ApplicationDoc,
+  type ConversationDoc,
+  type MessageDoc,
+  type VerificationCodeDoc,
+} from 'shared/schema.ts';
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  
-  getCourse(id: string): Promise<Course | undefined>;
-  getAllCourses(): Promise<Course[]>;
-  createCourse(course: InsertCourse): Promise<Course>;
-  updateCourse(id: string, course: Partial<InsertCourse>): Promise<Course | undefined>;
+  // User methods
+  getUser(id: string): Promise<UserDoc | null>;
+  getUserByEmail(email: string): Promise<UserDoc | null>;
+  createUser(user: InsertUser): Promise<IUser>;
+
+  // Course methods
+  getCourse(id: string): Promise<CourseDoc | null>;
+  getAllCourses(): Promise<CourseDoc[]>;
+  createCourse(course: InsertCourse): Promise<ICourse>;
+  updateCourse(id: string, course: Partial<InsertCourse>): Promise<CourseDoc | null>;
   deleteCourse(id: string): Promise<boolean>;
-  
-  getApplication(id: string): Promise<Application | undefined>;
-  getApplicationsByStudent(studentId: string): Promise<Application[]>;
-  getAllApplications(): Promise<Application[]>;
-  createApplication(application: InsertApplication): Promise<Application>;
-  updateApplication(id: string, application: Partial<InsertApplication>): Promise<Application | undefined>;
-  
-  getConversation(id: string): Promise<Conversation | undefined>;
-  getConversationsByStudent(studentId: string): Promise<Conversation[]>;
-  getAllConversations(): Promise<Conversation[]>;
-  createConversation(conversation: InsertConversation): Promise<Conversation>;
-  updateConversation(id: string, conversation: Partial<InsertConversation>): Promise<Conversation | undefined>;
-  
-  getMessage(id: string): Promise<Message | undefined>;
-  getMessagesByConversation(conversationId: string): Promise<Message[]>;
-  createMessage(message: InsertMessage): Promise<Message>;
-  
-  createVerificationCode(code: InsertVerificationCode): Promise<VerificationCode>;
-  getVerificationCode(email: string): Promise<VerificationCode | undefined>;
+
+  // Application methods
+  getApplication(id: string): Promise<ApplicationDoc | null>;
+  getApplicationsByStudent(studentId: string): Promise<ApplicationDoc[]>;
+  getAllApplications(): Promise<ApplicationDoc[]>;
+  createApplication(application: InsertApplication): Promise<IApplication>;
+  updateApplication(id: string, application: Partial<InsertApplication>): Promise<ApplicationDoc | null>;
+
+  // Conversation methods
+  getConversation(id: string): Promise<ConversationDoc | null>;
+  getConversationsByStudent(studentId: string): Promise<ConversationDoc[]>;
+  getAllConversations(): Promise<ConversationDoc[]>;
+  createConversation(conversation: InsertConversation): Promise<IConversation>;
+  updateConversation(id: string, conversation: Partial<InsertConversation>): Promise<ConversationDoc | null>;
+
+  // Message methods
+  getMessage(id: string): Promise<MessageDoc | null>;
+  getMessagesByConversation(conversationId: string): Promise<MessageDoc[]>;
+  createMessage(message: InsertMessage): Promise<IMessage>;
+
+  // Verification code methods
+  createVerificationCode(code: InsertVerificationCode): Promise<IVerificationCode>;
+  getVerificationCode(email: string): Promise<VerificationCodeDoc | null>;
   verifyCode(code: string, email: string): Promise<boolean>;
   deleteExpiredCodes(): Promise<void>;
 }
 
-export class DatabaseStorage implements IStorage {
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
+export class MongoDBStorage implements IStorage {
+  // ============= User Methods =============
+  async getUser(id: string): Promise<UserDoc | null> {
+    const user = await User.findById(id).lean();
+    if (!user) return null;
+    return { ...user, _id: user._id.toString() };
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user || undefined;
+  async getUserByEmail(email: string): Promise<UserDoc | null> {
+    const user = await User.findOne({ email: email.toLowerCase() }).lean();
+    if (!user) return null;
+    return { ...user, _id: user._id.toString() };
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(insertUser)
-      .returning();
-    return user;
+  async createUser(insertUser: InsertUser): Promise<IUser> {
+    const user = new User(insertUser);
+    return await user.save();
   }
 
-  async getCourse(id: string): Promise<Course | undefined> {
-    const [course] = await db.select().from(courses).where(eq(courses.id, id));
-    return course || undefined;
+  // ============= Course Methods =============
+  async getCourse(id: string): Promise<CourseDoc | null> {
+    const course = await Course.findById(id).lean();
+    if (!course) return null;
+    return { ...course, _id: course._id.toString() };
   }
 
-  async getAllCourses(): Promise<Course[]> {
-    return await db.select().from(courses);
+  async getAllCourses(): Promise<CourseDoc[]> {
+    const courses = await Course.find().lean();
+    return courses.map(c => ({ ...c, _id: c._id.toString() }));
   }
 
-  async createCourse(insertCourse: InsertCourse): Promise<Course> {
-    const [course] = await db
-      .insert(courses)
-      .values(insertCourse)
-      .returning();
-    return course;
+  async createCourse(insertCourse: InsertCourse): Promise<ICourse> {
+    const course = new Course(insertCourse);
+    return await course.save();
   }
 
-  async updateCourse(id: string, courseUpdate: Partial<InsertCourse>): Promise<Course | undefined> {
-    const [course] = await db
-      .update(courses)
-      .set(courseUpdate)
-      .where(eq(courses.id, id))
-      .returning();
-    return course || undefined;
+  async updateCourse(id: string, courseUpdate: Partial<InsertCourse>): Promise<CourseDoc | null> {
+    const course = await Course.findByIdAndUpdate(
+      id,
+      { $set: courseUpdate },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!course) return null;
+    return { ...course, _id: course._id.toString() };
   }
 
   async deleteCourse(id: string): Promise<boolean> {
-    const result = await db.delete(courses).where(eq(courses.id, id));
-    return result.rowCount !== null && result.rowCount > 0;
+    const result = await Course.findByIdAndDelete(id);
+    return result !== null;
   }
 
-  async getApplication(id: string): Promise<Application | undefined> {
-    const [application] = await db.select().from(applications).where(eq(applications.id, id));
-    return application || undefined;
+  // ============= Application Methods =============
+  async getApplication(id: string): Promise<ApplicationDoc | null> {
+    const app = await Application.findById(id).lean();
+    if (!app) return null;
+    return { ...app, _id: app._id.toString() };
   }
 
-  async getApplicationsByStudent(studentId: string): Promise<Application[]> {
-    return await db.select().from(applications).where(eq(applications.studentId, studentId));
+  async getApplicationsByStudent(studentId: string): Promise<ApplicationDoc[]> {
+    const apps = await Application.find({ studentId }).lean();
+    return apps.map(a => ({ ...a, _id: a._id.toString() }));
   }
 
-  async getAllApplications(): Promise<Application[]> {
-    return await db.select().from(applications);
+  async getAllApplications(): Promise<ApplicationDoc[]> {
+    const apps = await Application.find().lean();
+    return apps.map(a => ({ ...a, _id: a._id.toString() }));
   }
 
-  async createApplication(insertApplication: InsertApplication): Promise<Application> {
-    const [application] = await db
-      .insert(applications)
-      .values(insertApplication)
-      .returning();
-    return application;
+  async createApplication(insertApplication: InsertApplication): Promise<IApplication> {
+    const application = new Application(insertApplication);
+    return await application.save();
   }
 
-  async updateApplication(id: string, applicationUpdate: Partial<InsertApplication>): Promise<Application | undefined> {
-    const [application] = await db
-      .update(applications)
-      .set({
-        ...applicationUpdate,
-        updatedAt: new Date(),
-      })
-      .where(eq(applications.id, id))
-      .returning();
-    return application || undefined;
+  async updateApplication(
+    id: string,
+    applicationUpdate: Partial<InsertApplication>
+  ): Promise<ApplicationDoc | null> {
+    const app = await Application.findByIdAndUpdate(
+      id,
+      { 
+        $set: {
+          ...applicationUpdate,
+          updatedAt: new Date(),
+        }
+      },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!app) return null;
+    return { ...app, _id: app._id.toString() };
   }
 
-  async getConversation(id: string): Promise<Conversation | undefined> {
-    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
-    return conversation || undefined;
+  // ============= Conversation Methods =============
+  async getConversation(id: string): Promise<ConversationDoc | null> {
+    const conv = await Conversation.findById(id).lean();
+    if (!conv) return null;
+    return { ...conv, _id: conv._id.toString() };
   }
 
-  async getConversationsByStudent(studentId: string): Promise<Conversation[]> {
-    return await db.select().from(conversations).where(eq(conversations.studentId, studentId)).orderBy(desc(conversations.updatedAt));
+  async getConversationsByStudent(studentId: string): Promise<ConversationDoc[]> {
+    const convs = await Conversation.find({ studentId })
+      .sort({ updatedAt: -1 })
+      .lean();
+    return convs.map(c => ({ ...c, _id: c._id.toString() }));
   }
 
-  async getAllConversations(): Promise<Conversation[]> {
-    return await db.select().from(conversations).orderBy(desc(conversations.updatedAt));
+  async getAllConversations(): Promise<ConversationDoc[]> {
+    const convs = await Conversation.find()
+      .sort({ updatedAt: -1 })
+      .lean();
+    return convs.map(c => ({ ...c, _id: c._id.toString() }));
   }
 
-  async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
-    const [conversation] = await db
-      .insert(conversations)
-      .values(insertConversation)
-      .returning();
-    return conversation;
+  async createConversation(insertConversation: InsertConversation): Promise<IConversation> {
+    const conversation = new Conversation(insertConversation);
+    return await conversation.save();
   }
 
-  async updateConversation(id: string, conversationUpdate: Partial<InsertConversation>): Promise<Conversation | undefined> {
-    const [conversation] = await db
-      .update(conversations)
-      .set({
-        ...conversationUpdate,
-        updatedAt: new Date(),
-      })
-      .where(eq(conversations.id, id))
-      .returning();
-    return conversation || undefined;
+  async updateConversation(
+    id: string,
+    conversationUpdate: Partial<InsertConversation>
+  ): Promise<ConversationDoc | null> {
+    const conv = await Conversation.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          ...conversationUpdate,
+          updatedAt: new Date(),
+        }
+      },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!conv) return null;
+    return { ...conv, _id: conv._id.toString() };
   }
 
-  async getMessage(id: string): Promise<Message | undefined> {
-    const [message] = await db.select().from(messages).where(eq(messages.id, id));
-    return message || undefined;
+  // ============= Message Methods =============
+  async getMessage(id: string): Promise<MessageDoc | null> {
+    const msg = await Message.findById(id).lean();
+    if (!msg) return null;
+    return { ...msg, _id: msg._id.toString() };
   }
 
-  async getMessagesByConversation(conversationId: string): Promise<Message[]> {
-    return await db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.createdAt);
+  async getMessagesByConversation(conversationId: string): Promise<MessageDoc[]> {
+    const msgs = await Message.find({ conversationId })
+      .sort({ createdAt: 1 })
+      .lean();
+    return msgs.map(m => ({ ...m, _id: m._id.toString() }));
   }
 
-  async createMessage(insertMessage: InsertMessage): Promise<Message> {
-    const [message] = await db
-      .insert(messages)
-      .values(insertMessage)
-      .returning();
-    return message;
+  async createMessage(insertMessage: InsertMessage): Promise<IMessage> {
+    const message = new Message(insertMessage);
+    return await message.save();
   }
 
-  async createVerificationCode(code: InsertVerificationCode): Promise<VerificationCode> {
-    const [verCode] = await db
-      .insert(verificationCodes)
-      .values(code)
-      .returning();
-    return verCode;
+  // ============= Verification Code Methods =============
+  async createVerificationCode(code: InsertVerificationCode): Promise<IVerificationCode> {
+    const verificationCode = new VerificationCode(code);
+    return await verificationCode.save();
   }
 
-  async getVerificationCode(email: string): Promise<VerificationCode | undefined> {
-    const [code] = await db
-      .select()
-      .from(verificationCodes)
-      .where(eq(verificationCodes.email, email))
-      .orderBy(desc(verificationCodes.createdAt))
-      .limit(1);
-    
-    return code || undefined;
+  async getVerificationCode(email: string): Promise<VerificationCodeDoc | null> {
+    const verCode = await VerificationCode.findOne({ email: email.toLowerCase() })
+      .sort({ createdAt: -1 })
+      .lean();
+    if (!verCode) return null;
+    return { ...verCode, _id: verCode._id.toString() };
   }
 
   async verifyCode(code: string, email: string): Promise<boolean> {
     const verCode = await this.getVerificationCode(email);
-    
+
     if (!verCode) return false;
     if (verCode.code !== code) return false;
     if (new Date() > verCode.expiresAt) return false;
-    
-    await db
-      .update(verificationCodes)
-      .set({ isVerified: 1 })
-      .where(eq(verificationCodes.id, verCode.id));
-    
+
+    await VerificationCode.findByIdAndUpdate(verCode._id, {
+      $set: { isVerified: true }
+    });
+
     return true;
   }
 
   async deleteExpiredCodes(): Promise<void> {
-    await db
-      .delete(verificationCodes)
-      .where(eq(verificationCodes.isVerified, 0));
+    await VerificationCode.deleteMany({
+      $or: [
+        { isVerified: false, expiresAt: { $lt: new Date() } },
+        { isVerified: true }
+      ]
+    });
   }
 }
 
-export const storage = new DatabaseStorage();
+// Export singleton instance
+export const storage = new MongoDBStorage();

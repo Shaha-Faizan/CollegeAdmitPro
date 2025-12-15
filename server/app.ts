@@ -1,14 +1,20 @@
-import { type Server } from "node:http";
+import "dotenv/config";
 
+import { type Server } from "node:http";
 import express, {
   type Express,
   type Request,
-  Response,
-  NextFunction,
+  type Response,
+  type NextFunction,
 } from "express";
 
+import session from "express-session";
+import MongoStore from "connect-mongo";
+
 import { registerRoutes } from "./routes";
-import { seedDatabase } from "./db";
+import { connectDB, seedDatabase } from "./db";
+
+/* ---------------- Logger ---------------- */
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -21,57 +27,70 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+/* ---------------- App Init ---------------- */
+
 export const app = express();
 
-import session from "express-session";
-import connectPg from "connect-pg-simple";
-import { pool } from "./db";
+/* ---------------- MongoDB Connection ---------------- */
 
-const PgStore = connectPg(session);
+
+await connectDB();
+
+/* ---------------- Session (MongoDB) ---------------- */
 
 app.use(
   session({
-    store: new PgStore({
-      pool,
-      tableName: "session",
+    store: MongoStore.create({
+      mongoUrl: process.env.DATABASE_URL as string,
+      collectionName: "sessions",
     }),
     secret: process.env.SESSION_SECRET || "dev_secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false,
-      maxAge: 1000 * 60 * 60 * 24 * 7,
+      secure: false, // set true in production with HTTPS
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     },
   })
 );
 
-declare module 'http' {
+/* ---------------- Body Parsers ---------------- */
+
+declare module "http" {
   interface IncomingMessage {
-    rawBody: unknown
+    rawBody?: unknown;
   }
 }
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
+
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
+
 app.use(express.urlencoded({ extended: false }));
+
+/* ---------------- Request Logger ---------------- */
 
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  let capturedJsonResponse: any;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
+  const originalResJson = res.json.bind(res);
+  res.json = (body: any) => {
+    capturedJsonResponse = body;
+    return originalResJson(body);
   };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
+
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
@@ -87,6 +106,8 @@ app.use((req, res, next) => {
   next();
 });
 
+/* ---------------- Run App ---------------- */
+
 export default async function runApp(
   setup: (app: Express, server: Server) => Promise<void>,
 ) {
@@ -94,28 +115,27 @@ export default async function runApp(
 
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+  app.use(
+    (err: any, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      res.status(status).json({ message });
+      throw err;
+    }
+  );
 
-    res.status(status).json({ message });
-    throw err;
-  });
-
-  // importantly run the final setup after setting up all the other routes so
-  // the catch-all route doesn't interfere with the other routes
   await setup(app, server);
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  const port = parseInt(process.env.PORT || "5000", 10);
+
+  server.listen(
+    {
+      port,
+      host: "0.0.0.0",
+      reusePort: true,
+    },
+    () => {
+      log(`🚀 Server running on port ${port}`);
+    }
+  );
 }

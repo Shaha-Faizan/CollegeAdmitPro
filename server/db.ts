@@ -1,41 +1,96 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import { eq } from 'drizzle-orm';
-import ws from "ws";
-import * as schema from "@shared/schema";
+import mongoose from "mongoose";
 import bcrypt from "bcrypt";
+import { User } from "@shared/schema";
 
-neonConfig.webSocketConstructor = ws;
+/* ---------------- Environment ---------------- */
 
-if (!process.env.DATABASE_URL) {
+const MONGO_URI = process.env.DATABASE_URL;
+
+if (!MONGO_URI) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "DATABASE_URL must be set. Did you forget to configure MongoDB?"
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+/* ---------------- Connection Options ---------------- */
 
-export async function seedDatabase() {
+const connectionOptions: mongoose.ConnectOptions = {
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+};
+
+/* ---------------- Connect DB ---------------- */
+
+export const connectDB = async (): Promise<void> => {
   try {
-    const existingAdmins = await db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.email, "admin@example.com"));
+    await mongoose.connect(MONGO_URI, connectionOptions);
+    console.log("✅ MongoDB connected");
+  } catch (error) {
+    console.error("❌ MongoDB connection failed:", error);
+    process.exit(1);
+  }
+};
 
-    if (existingAdmins.length === 0) {
+/* ---------------- Disconnect DB ---------------- */
+
+export const disconnectDB = async (): Promise<void> => {
+  try {
+    await mongoose.disconnect();
+    console.log("✅ MongoDB disconnected");
+  } catch (error) {
+    console.error("❌ Error disconnecting MongoDB:", error);
+  }
+};
+
+/* ---------------- Seed Database ---------------- */
+
+export const seedDatabase = async (): Promise<void> => {
+  try {
+    const existingAdmin = await User.findOne({
+      email: "admin@example.com",
+    });
+
+    if (!existingAdmin) {
       const hashedPassword = await bcrypt.hash("admin123", 10);
-      await db.insert(schema.users).values({
+
+      await User.create({
         email: "admin@example.com",
         password: hashedPassword,
         fullName: "Admin User",
         role: "admin",
       });
-      console.log("✓ Admin user created: admin@example.com / admin123");
+
+      console.log("✅ Admin created: admin@example.com / admin123");
     } else {
-      console.log("✓ Admin user already exists");
+      console.log("ℹ️ Admin already exists");
     }
   } catch (error) {
-    console.error("Error seeding database:", error);
+    console.error("❌ Database seeding failed:", error);
   }
-}
+};
+
+/* ---------------- Mongoose Events ---------------- */
+
+mongoose.connection.on("connected", () => {
+  console.log("📡 Mongoose connected");
+});
+
+mongoose.connection.on("error", (err) => {
+  console.error("🔥 Mongoose error:", err);
+});
+
+mongoose.connection.on("disconnected", () => {
+  console.log("🔌 Mongoose disconnected");
+});
+
+/* ---------------- Graceful Shutdown ---------------- */
+
+process.on("SIGINT", async () => {
+  await disconnectDB();
+  process.exit(0);
+});
+
+/* ---------------- Export Mongoose ---------------- */
+
+export { mongoose };

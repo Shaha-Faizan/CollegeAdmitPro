@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageCircle, X, Send } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
-import type { Conversation, Message } from "@shared/schema";
+import type { ConversationDoc, MessageDoc } from "@shared/schema";
 
 // Get or create guest ID for unauthenticated users
 function getGuestId(): string {
@@ -25,8 +25,8 @@ export function ChatWidget() {
   const [isGuest, setIsGuest] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Check authentication
   useEffect(() => {
-    // Check if user is authenticated by trying to access auth endpoint
     fetch("/api/auth/me")
       .then((res) => setIsGuest(!res.ok))
       .catch(() => setIsGuest(true));
@@ -35,14 +35,13 @@ export function ChatWidget() {
   const chatEndpoint = isGuest === true ? "/api/chat/guest" : "/api/chat";
   const isAuthCheckComplete = isGuest !== null;
 
-  const { data: conversations = [] } = useQuery<Conversation[]>({
+  // Fetch conversations
+  const { data: conversations = [] } = useQuery<ConversationDoc[]>({
     queryKey: [chatEndpoint + "/conversations"],
     enabled: isOpen && isAuthCheckComplete,
     queryFn: async () => {
       try {
-        const response = await fetch(`${chatEndpoint}/conversations${isGuest === true ? `?guestId=${getGuestId()}` : ""}`, {
-          method: "GET",
-        });
+        const response = await fetch(`${chatEndpoint}/conversations${isGuest === true ? `?guestId=${getGuestId()}` : ""}`);
         if (!response.ok) return [];
         const data = await response.json();
         return Array.isArray(data) ? data : [];
@@ -53,15 +52,16 @@ export function ChatWidget() {
     },
   });
 
-  const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
+  // Fetch messages
+  const { data: messages = [], refetch: refetchMessages } = useQuery<MessageDoc[]>({
     queryKey: [chatEndpoint + "/messages", selectedConversation],
     enabled: !!selectedConversation && isAuthCheckComplete,
     refetchInterval: 2000,
     queryFn: async () => {
       try {
-        const response = await fetch(`${chatEndpoint}/messages/${selectedConversation}${isGuest === true ? `?guestId=${getGuestId()}` : ""}`, {
-          method: "GET",
-        });
+        const response = await fetch(
+          `${chatEndpoint}/messages/${selectedConversation}${isGuest === true ? `?guestId=${getGuestId()}` : ""}`
+        );
         if (!response.ok) return [];
         const data = await response.json();
         return Array.isArray(data) ? data : [];
@@ -72,18 +72,14 @@ export function ChatWidget() {
     },
   });
 
+  // Create conversation
   const createConversationMutation = useMutation({
     mutationFn: async (subject: string) => {
-      // Prevent mutation if auth check isn't complete
-      if (isGuest === null) {
-        throw new Error("Waiting for authentication check to complete...");
-      }
-      
+      if (isGuest === null) throw new Error("Waiting for authentication check to complete...");
+
       const endpoint = isGuest === true ? "/api/chat/guest" : "/api/chat";
-      const body = isGuest === true
-        ? { subject, guestId: getGuestId() }
-        : { subject };
-      
+      const body = isGuest === true ? { subject, guestId: getGuestId() } : { subject };
+
       const response = await fetch(`${endpoint}/conversations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -96,7 +92,7 @@ export function ChatWidget() {
       return response.json();
     },
     onSuccess: (data: any) => {
-      setSelectedConversation(data.id);
+      setSelectedConversation(data._id);
       queryClient.invalidateQueries({ queryKey: [chatEndpoint + "/conversations"] });
     },
     onError: (error: any) => {
@@ -104,20 +100,17 @@ export function ChatWidget() {
     },
   });
 
+  // Send message
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
       if (!selectedConversation || !messageText.trim()) return;
-      
-      // Prevent mutation if auth check isn't complete
-      if (isGuest === null) {
-        throw new Error("Waiting for authentication check to complete...");
-      }
-      
+      if (isGuest === null) throw new Error("Waiting for authentication check to complete...");
+
       const endpoint = isGuest === true ? "/api/chat/guest" : "/api/chat";
       const body = isGuest === true
         ? { conversationId: selectedConversation, message: messageText, guestId: getGuestId() }
         : { conversationId: selectedConversation, message: messageText };
-      
+
       const response = await fetch(`${endpoint}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -138,17 +131,17 @@ export function ChatWidget() {
     },
   });
 
+  // Auto-scroll
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
-    }
+    if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Floating open button
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-       className="fixed bottom-4 right-4 w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center z-50"
+        className="fixed bottom-4 right-4 w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center z-50"
         data-testid="button-chat-open"
       >
         <MessageCircle className="h-6 w-6" />
@@ -157,126 +150,124 @@ export function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 w-80 h-80 sm:w-96 sm:h-96 z-40 max-w-[calc(100vw-32px)] max-h-[calc(100vh-32px)]">
-      <Card className="h-full shadow-xl rounded-lg overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
-          <CardTitle className="text-lg">Support Chat</CardTitle>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setIsOpen(false)}
-            data-testid="button-chat-close"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </CardHeader>
+   <div className="fixed bottom-4 right-4 w-80 h-80 sm:w-96 sm:h-96 z-40 max-w-[calc(100vw-32px)] max-h-[calc(100vh-32px)]">
+  <Card className="h-full shadow-xl rounded-lg overflow-hidden flex flex-col">
+    {/* Header always visible */}
+    <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
+      <CardTitle className="text-lg">Support Chat</CardTitle>
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => setIsOpen(false)}
+        data-testid="button-chat-close"
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </CardHeader>
 
-        <CardContent className="flex flex-col gap-3 h-full pb-3">
-          {!selectedConversation ? (
-            <div className="space-y-3 flex-1 overflow-y-auto">
-              <p className="text-sm text-muted-foreground mb-4">
-                Select a conversation or start a new one
-              </p>
-              {conversations.length === 0 ? (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => createConversationMutation.mutate("New Support Request")}
-                  disabled={createConversationMutation.isPending || !isAuthCheckComplete}
-                  data-testid="button-new-conversation"
+    {/* Body */}
+    <CardContent className="flex-1 flex flex-col gap-3 pb-3">
+      {selectedConversation ? (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedConversation(null)}
+            className="self-start"
+            data-testid="button-back-to-conversations"
+          >
+            ← Back
+          </Button>
+          {/* Messages */}
+          <ScrollArea className="flex-1 rounded-md border p-3">
+            <div className="space-y-3">
+              {messages.map((msg) => (
+                <div
+                  key={msg._id.toString()}
+                  className={`flex ${msg.senderId === "system" ? "justify-center" : ""}`}
                 >
-                  + Start New Conversation
-                </Button>
-              ) : (
-                <div className="space-y-2">
-                  {conversations.map((conv) => (
-                    <button
-                      key={conv.id}
-                      onClick={() => setSelectedConversation(conv.id)}
-                      className="w-full text-left p-3 rounded-md hover:bg-muted transition-colors"
-                      data-testid={`button-conversation-${conv.id}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">{conv.subject}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {conv.status}
-                        </Badge>
-                      </div>
-                    </button>
-                  ))}
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start mt-2"
-                    onClick={() => createConversationMutation.mutate("New Support Request")}
-                    disabled={createConversationMutation.isPending || !isAuthCheckComplete}
-                    data-testid="button-new-conversation-2"
-                  >
-                    + New Conversation
-                  </Button>
+                  <div className={`max-w-xs px-3 py-2 rounded-md text-sm ${
+                    msg.senderId === "system"
+                      ? "bg-muted text-muted-foreground"
+                      : "bg-primary text-primary-foreground"
+                  }`}>
+                    {msg.message}
+                  </div>
                 </div>
-              )}
+              ))}
+              <div ref={scrollRef} />
             </div>
+          </ScrollArea>
+          {/* Input */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Type your message..."
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessageMutation.mutate();
+                }
+              }}
+              className="flex-1 px-3 py-2 rounded-md border border-input bg-background text-sm"
+            />
+            <Button
+              size="icon"
+              onClick={() => sendMessageMutation.mutate()}
+              disabled={!messageText.trim() || sendMessageMutation.isPending}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+        </>
+      ) : (
+        // Conversation list / new conversation button
+        <div className="space-y-3 flex-1 overflow-y-auto">
+          <p className="text-sm text-muted-foreground mb-4">
+            Select a conversation or start a new one
+          </p>
+          {conversations.length === 0 ? (
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => createConversationMutation.mutate("New Support Request")}
+              disabled={createConversationMutation.isPending || !isAuthCheckComplete}
+            >
+              + Start New Conversation
+            </Button>
           ) : (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedConversation(null)}
-                className="self-start"
-                data-testid="button-back-to-conversations"
-              >
-                ← Back
-              </Button>
-              <ScrollArea className="flex-1 rounded-md border p-3">
-                <div className="space-y-3">
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.senderId === "system" ? "justify-center" : ""}`}
-                      data-testid={`message-${msg.id}`}
-                    >
-                      <div
-                        className={`max-w-xs px-3 py-2 rounded-md text-sm ${
-                          msg.senderId === "system"
-                            ? "bg-muted text-muted-foreground"
-                            : "bg-primary text-primary-foreground"
-                        }`}
-                      >
-                        {msg.message}
-                      </div>
-                    </div>
-                  ))}
-                  <div ref={scrollRef} />
-                </div>
-              </ScrollArea>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Type your message..."
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessageMutation.mutate();
-                    }
-                  }}
-                  className="flex-1 px-3 py-2 rounded-md border border-input bg-background text-sm"
-                  data-testid="input-message"
-                />
-                <Button
-                  size="icon"
-                  onClick={() => sendMessageMutation.mutate()}
-                  disabled={!messageText.trim() || sendMessageMutation.isPending}
-                  data-testid="button-send-message"
+            <div className="space-y-2">
+              {conversations.map((conv) => (
+                <button
+                  key={conv._id.toString()}
+                  onClick={() => setSelectedConversation(conv._id.toString())}
+                  className="w-full text-left p-3 rounded-md hover:bg-muted transition-colors"
                 >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            </>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm">{conv.subject}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {conv.status}
+                    </Badge>
+                  </div>
+                </button>
+              ))}
+              <Button
+                variant="outline"
+                className="w-full justify-start mt-2"
+                onClick={() => createConversationMutation.mutate("New Support Request")}
+                disabled={createConversationMutation.isPending || !isAuthCheckComplete}
+              >
+                + New Conversation
+              </Button>
+            </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      )}
+    </CardContent>
+  </Card>
+</div>
+
   );
 }
