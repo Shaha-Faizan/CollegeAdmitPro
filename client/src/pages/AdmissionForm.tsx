@@ -16,7 +16,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Upload, X, FileText, CheckCircle, Loader2 } from "lucide-react";
-import type { Course, PersonalDetails, ParentGuardianDetails, AcademicDetails } from "@shared/schema";
+import type { CourseDoc, PersonalDetails, ParentGuardianDetails, AcademicDetails } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -103,7 +103,7 @@ export default function AdmissionForm() {
 
   const [documents, setDocuments] = useState<DocumentState>({});
 
-  const { data: courses = [] } = useQuery<Course[]>({
+  const { data: courses = [] } = useQuery<CourseDoc[]>({
     queryKey: ["/api/courses"],
   });
 
@@ -1032,7 +1032,7 @@ export default function AdmissionForm() {
                         </SelectTrigger>
                         <SelectContent>
                           {courses.map((course) => (
-                            <SelectItem key={course.id} value={course.id}>
+                            <SelectItem key={course._id} value={course._id}>
                               {course.name} ({course.code})
                             </SelectItem>
                           ))}

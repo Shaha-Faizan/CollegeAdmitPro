@@ -1,14 +1,15 @@
+import "dotenv/config";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import { User } from "@shared/schema";
 
 /* ---------------- Environment ---------------- */
 
-const MONGO_URI = process.env.DATABASE_URL;
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
 
 if (!MONGO_URI) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to configure MongoDB?"
+    "MONGO_URI must be set. Did you forget to configure MongoDB?"
   );
 }
 

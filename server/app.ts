@@ -10,6 +10,7 @@ import express, {
 
 import session from "express-session";
 import MongoStore from "connect-mongo";
+import cors from "cors";
 
 import { registerRoutes } from "./routes";
 import { connectDB, seedDatabase } from "./db";
@@ -33,22 +34,33 @@ export const app = express();
 
 /* ---------------- MongoDB Connection ---------------- */
 
-
 await connectDB();
+
+/* ---------------- CORS (MUST BE BEFORE SESSION) ---------------- */
+
+app.use(
+  cors({
+    origin: "http://localhost:5173", // React frontend
+    credentials: true,               // 🔥 allow cookies
+  })
+);
 
 /* ---------------- Session (MongoDB) ---------------- */
 
 app.use(
   session({
+    name: "eduadmitsid",
     store: MongoStore.create({
-      mongoUrl: process.env.DATABASE_URL as string,
+      mongoUrl: (process.env.MONGO_URI || process.env.MONGODB_URI) as string,
       collectionName: "sessions",
     }),
     secret: process.env.SESSION_SECRET || "dev_secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // set true in production with HTTPS
+      httpOnly: true,
+      secure: false,        // true in production (HTTPS)
+      sameSite: "lax",      // 🔥 required for localhost
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     },
   })

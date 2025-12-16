@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, CheckCircle2, XCircle, Download, Eye, X } from "lucide-react";
-import type { Application, Course } from "@shared/schema";
+import type { ApplicationDoc, CourseDoc } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -64,15 +64,15 @@ export default function ApplicationDetails() {
     }
   };
 
-  const { data: applications = [] } = useQuery<Application[]>({
+  const { data: applications = [] } = useQuery<ApplicationDoc[]>({
     queryKey: ["/api/applications"],
   });
 
-  const { data: courses = [] } = useQuery<Course[]>({
+  const { data: courses = [] } = useQuery<CourseDoc[]>({
     queryKey: ["/api/courses"],
   });
 
-  const application = applications.find(app => app.id === id);
+  const application = applications.find(app => app._id === id);
 
   const updateStatusMutation = useMutation({
     mutationFn: async (data: { id: string; status: string }) => {
@@ -95,11 +95,11 @@ export default function ApplicationDetails() {
   });
 
   const getCourseName = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
+    const course = courses.find(c => c._id === courseId);
     return course ? course.name : "Unknown";
   };
 
-  const getPersonalDetails = (app: Application) => {
+  const getPersonalDetails = (app: ApplicationDoc) => {
     try {
       return app.personalDetails ? JSON.parse(app.personalDetails) : {};
     } catch {
@@ -107,7 +107,7 @@ export default function ApplicationDetails() {
     }
   };
 
-  const getAcademicDetails = (app: Application) => {
+  const getAcademicDetails = (app: ApplicationDoc) => {
     try {
       return app.academicDetails ? JSON.parse(app.academicDetails) : {};
     } catch {
@@ -115,7 +115,7 @@ export default function ApplicationDetails() {
     }
   };
 
-  const getDocuments = (app: Application) => {
+  const getDocuments = (app: ApplicationDoc) => {
     try {
       return app.documents ? JSON.parse(app.documents) : {};
     } catch {
@@ -615,7 +615,7 @@ export default function ApplicationDetails() {
               <div className="flex gap-3">
                 <Button
                   variant="default"
-                  onClick={() => handleApprove(application.id)}
+                  onClick={() => handleApprove(application._id)}
                   disabled={updateStatusMutation.isPending}
                   data-testid="button-approve"
                   className="flex-1"
@@ -625,7 +625,7 @@ export default function ApplicationDetails() {
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => handleReject(application.id)}
+                  onClick={() => handleReject(application._id)}
                   disabled={updateStatusMutation.isPending}
                   data-testid="button-reject"
                   className="flex-1"

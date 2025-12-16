@@ -82,7 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { password: _, ...userWithoutPassword } = user;
       
       if (req.session) {
-        req.session.userId = user.id;
+        req.session.userId = user._id;
         req.session.isAdmin = user.role === "admin";
       }
       
@@ -577,7 +577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const conversationsWithMessages = await Promise.all(
         conversations.map(async (conv) => ({
           ...conv,
-          messages: await storage.getMessagesByConversation(conv.id),
+          messages: await storage.getMessagesByConversation(conv._id),
           student: await storage.getUser(conv.studentId),
         }))
       );
@@ -595,7 +595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const conversation = await storage.updateConversation(req.params.id, {
-        supportStaffId: req.body.supportStaffId || user.id,
+        supportStaffId: req.body.supportStaffId || user._id,
       });
 
       res.json(conversation);

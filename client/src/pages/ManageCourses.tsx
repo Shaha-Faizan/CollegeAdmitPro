@@ -24,16 +24,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import type { Course } from "@shared/schema";
+import type { CourseDoc } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ManageCourses() {
   const { toast } = useToast();
+
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [editingCourse, setEditingCourse] = useState<CourseDoc | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     name: "",
     code: "",
@@ -42,13 +44,17 @@ export default function ManageCourses() {
     degree: "",
   });
 
-  const { data: courses = [], isLoading } = useQuery<Course[]>({
+  /* ---------------- Fetch Courses ---------------- */
+
+  const { data: courses = [], isLoading } = useQuery<CourseDoc[]>({
     queryKey: ["/api/courses"],
   });
 
+  /* ---------------- Create Course ---------------- */
+
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      return await apiRequest("POST", "/api/courses", data);
+      return apiRequest("POST", "/api/courses", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
@@ -57,7 +63,13 @@ export default function ManageCourses() {
         description: "The course has been added successfully",
       });
       setDialogOpen(false);
-      setFormData({ name: "", code: "", description: "", duration: "", degree: "" });
+      setFormData({
+        name: "",
+        code: "",
+        description: "",
+        duration: "",
+        degree: "",
+      });
     },
     onError: (error: any) => {
       toast({
@@ -68,9 +80,17 @@ export default function ManageCourses() {
     },
   });
 
+  /* ---------------- Update Course ---------------- */
+
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      return await apiRequest("PATCH", `/api/courses/${id}`, data);
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: typeof formData;
+    }) => {
+      return apiRequest("PATCH", `/api/courses/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
@@ -80,7 +100,13 @@ export default function ManageCourses() {
       });
       setDialogOpen(false);
       setEditingCourse(null);
-      setFormData({ name: "", code: "", description: "", duration: "", degree: "" });
+      setFormData({
+        name: "",
+        code: "",
+        description: "",
+        duration: "",
+        degree: "",
+      });
     },
     onError: (error: any) => {
       toast({
@@ -91,9 +117,11 @@ export default function ManageCourses() {
     },
   });
 
+  /* ---------------- Delete Course ---------------- */
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest("DELETE", `/api/courses/${id}`);
+      return apiRequest("DELETE", `/api/courses/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
@@ -111,16 +139,22 @@ export default function ManageCourses() {
     },
   });
 
+  /* ---------------- Handlers ---------------- */
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
     if (editingCourse) {
-      updateMutation.mutate({ id: editingCourse.id, data: formData });
+      updateMutation.mutate({
+        id: editingCourse._id, // ✅ FIXED
+        data: formData,
+      });
     } else {
       createMutation.mutate(formData);
     }
   };
 
-  const handleEdit = (course: Course) => {
+  const handleEdit = (course: CourseDoc) => {
     setEditingCourse(course);
     setFormData({
       name: course.name,
@@ -149,9 +183,17 @@ export default function ManageCourses() {
     setDialogOpen(open);
     if (!open) {
       setEditingCourse(null);
-      setFormData({ name: "", code: "", description: "", duration: "", degree: "" });
+      setFormData({
+        name: "",
+        code: "",
+        description: "",
+        duration: "",
+        degree: "",
+      });
     }
   };
+
+  /* ---------------- UI ---------------- */
 
   return (
     <DashboardLayout role="admin">
@@ -159,32 +201,32 @@ export default function ManageCourses() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-medium">Manage Courses</h1>
-            <p className="text-muted-foreground">Add, edit, or remove courses</p>
+            <p className="text-muted-foreground">
+              Add, edit, or remove courses
+            </p>
           </div>
-          
+
+          {/* Delete Confirmation */}
           <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Delete Course</DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to delete this course? This action cannot be undone.
+                  Are you sure you want to delete this course? This action
+                  cannot be undone.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
                 <Button
-                  type="button"
                   variant="outline"
                   onClick={() => setDeleteConfirmOpen(false)}
-                  data-testid="button-cancel-delete"
                 >
                   Cancel
                 </Button>
                 <Button
-                  type="button"
                   variant="destructive"
                   onClick={confirmDelete}
                   disabled={deleteMutation.isPending}
-                  data-testid="button-confirm-delete"
                 >
                   {deleteMutation.isPending ? "Deleting..." : "Delete"}
                 </Button>
@@ -192,85 +234,110 @@ export default function ManageCourses() {
             </DialogContent>
           </Dialog>
 
+          {/* Add / Edit Dialog */}
           <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-course">
+              <Button>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Course
               </Button>
             </DialogTrigger>
+
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingCourse ? "Edit Course" : "Add New Course"}</DialogTitle>
+                <DialogTitle>
+                  {editingCourse ? "Edit Course" : "Add New Course"}
+                </DialogTitle>
                 <DialogDescription>
-                  {editingCourse ? "Update the course details" : "Enter the details for the new course"}
+                  {editingCourse
+                    ? "Update the course details"
+                    : "Enter the details for the new course"}
                 </DialogDescription>
               </DialogHeader>
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Course Name</Label>
+                  <Label>Course Name</Label>
                   <Input
-                    id="name"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    data-testid="input-course-name"
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="code">Course Code</Label>
+                  <Label>Course Code</Label>
                   <Input
-                    id="code"
                     value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    data-testid="input-course-code"
+                    onChange={(e) =>
+                      setFormData({ ...formData, code: e.target.value })
+                    }
                     disabled={!!editingCourse}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
+                  <Label>Description</Label>
                   <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
-                    data-testid="input-description"
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        description: e.target.value,
+                      })
+                    }
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="duration">Duration</Label>
+                    <Label>Duration</Label>
                     <Input
-                      id="duration"
                       value={formData.duration}
-                      onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                      placeholder="e.g., 4 years"
-                      data-testid="input-duration"
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          duration: e.target.value,
+                        })
+                      }
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="degree">Degree</Label>
+                    <Label>Degree</Label>
                     <Input
-                      id="degree"
                       value={formData.degree}
-                      onChange={(e) => setFormData({ ...formData, degree: e.target.value })}
-                      placeholder="e.g., Bachelor's"
-                      data-testid="input-degree"
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          degree: e.target.value,
+                        })
+                      }
                     />
                   </div>
                 </div>
 
                 <div className="flex justify-end gap-3">
-                  <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleDialogChange(false)}
+                  >
                     Cancel
                   </Button>
-                  <Button type="submit" data-testid="button-save-course" disabled={createMutation.isPending || updateMutation.isPending}>
-                    {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save Course"}
+                  <Button
+                    type="submit"
+                    disabled={
+                      createMutation.isPending || updateMutation.isPending
+                    }
+                  >
+                    {createMutation.isPending || updateMutation.isPending
+                      ? "Saving..."
+                      : "Save Course"}
                   </Button>
                 </div>
               </form>
@@ -278,20 +345,25 @@ export default function ManageCourses() {
           </Dialog>
         </div>
 
+        {/* Courses Table */}
         <Card>
           <CardHeader>
             <CardTitle>All Courses</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading courses...</div>
+              <div className="text-center py-8 text-muted-foreground">
+                Loading courses...
+              </div>
             ) : courses.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No courses available</div>
+              <div className="text-center py-8 text-muted-foreground">
+                No courses available
+              </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Course Name</TableHead>
+                    <TableHead>Name</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Duration</TableHead>
                     <TableHead>Degree</TableHead>
@@ -300,8 +372,10 @@ export default function ManageCourses() {
                 </TableHeader>
                 <TableBody>
                   {courses.map((course) => (
-                    <TableRow key={course.id}>
-                      <TableCell className="font-medium">{course.name}</TableCell>
+                    <TableRow key={course._id}>
+                      <TableCell className="font-medium">
+                        {course.name}
+                      </TableCell>
                       <TableCell>{course.code}</TableCell>
                       <TableCell>{course.duration || "-"}</TableCell>
                       <TableCell>{course.degree || "-"}</TableCell>
@@ -311,15 +385,13 @@ export default function ManageCourses() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEdit(course)}
-                            data-testid={`button-edit-${course.id}`}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(course.id)}
-                            data-testid={`button-delete-${course.id}`}
+                            onClick={() => handleDelete(course._id)}
                             disabled={deleteMutation.isPending}
                           >
                             <Trash2 className="h-4 w-4" />

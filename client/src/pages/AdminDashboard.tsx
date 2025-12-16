@@ -5,18 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, CheckCircle2, Clock, XCircle, TrendingUp } from "lucide-react";
-import type { Application, Course } from "@shared/schema";
+import type {  ApplicationDoc,  CourseDoc } from "@shared/schema";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
 
 export default function AdminDashboard() {
   const [, navigate] = useLocation();
 
-  const { data: applications = [] } = useQuery<Application[]>({
+  const { data: applications = [] } = useQuery<ApplicationDoc[]>({
     queryKey: ["/api/applications"],
   });
 
-  const { data: courses = [] } = useQuery<Course[]>({
+  const { data: courses = [] } = useQuery<CourseDoc[]>({
     queryKey: ["/api/courses"],
   });
 
@@ -30,7 +30,7 @@ export default function AdminDashboard() {
 
   const courseDistribution = courses.map(course => ({
     course: course.name,
-    count: applications.filter(app => app.courseId === course.id).length,
+    count: applications.filter(app => app.courseId === course._id).length,
   })).sort((a, b) => b.count - a.count);
 
   const maxCount = Math.max(...courseDistribution.map(c => c.count), 1);
@@ -47,11 +47,11 @@ export default function AdminDashboard() {
     .slice(0, 5);
 
   const getCourseName = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
+    const course = courses.find(c => c._id === courseId);
     return course ? course.name : "Unknown";
   };
 
-  const getPersonalDetails = (app: Application) => {
+  const getPersonalDetails = (app: ApplicationDoc) => {
     try {
       return app.personalDetails ? JSON.parse(app.personalDetails) : {};
     } catch {
@@ -170,7 +170,7 @@ export default function AdminDashboard() {
                   const personalDetails = getPersonalDetails(app);
                   return (
                     <div
-                      key={app.id}
+                      key={app._id}
                       className="flex items-center justify-between gap-4 pb-4 border-b last:border-0 last:pb-0"
                     >
                       <div className="flex-1">
@@ -181,14 +181,14 @@ export default function AdminDashboard() {
                         <span className="text-sm text-muted-foreground">
                           {app.submittedAt ? format(new Date(app.submittedAt), "MMM dd") : "N/A"}
                         </span>
-                        <Badge variant={getStatusVariant(app.status)} data-testid={`badge-status-${app.id}`}>
+                        <Badge variant={getStatusVariant(app.status)} data-testid={`badge-status-${app._id}`}>
                           {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
                         </Badge>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/admin/applications/${app.id}`)}
-                          data-testid={`button-view-${app.id}`}
+                          onClick={() => navigate(`/admin/applications/${app._id}`)}
+                          data-testid={`button-view-${app._id}`}
                         >
                           View
                         </Button>

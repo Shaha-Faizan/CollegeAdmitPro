@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Eye, CheckCircle2, XCircle } from "lucide-react";
-import type { Application, Course } from "@shared/schema";
+import type { ApplicationDoc, CourseDoc } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -33,17 +33,17 @@ export default function ApplicationsList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: applications = [], isLoading } = useQuery<Application[]>({
+  const { data: applications = [], isLoading } = useQuery<ApplicationDoc[]>({
     queryKey: ["/api/applications"],
   });
 
-  const { data: courses = [] } = useQuery<Course[]>({
+  const { data: courses = [] } = useQuery<CourseDoc[]>({
     queryKey: ["/api/courses"],
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      return await apiRequest("PATCH", `/api/applications/${id}`, { status });
+    mutationFn: async ({ _id, status }: { _id: string; status: string }) => {
+      return apiRequest("PATCH", `/api/applications/${_id}`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
@@ -62,16 +62,16 @@ export default function ApplicationsList() {
   });
 
   const getCourseName = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
+    const course = courses.find(c => c._id === courseId);
     return course ? course.name : "Unknown";
   };
 
   const getCourseCode = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
+    const course = courses.find(c => c._id === courseId);
     return course ? course.code : "N/A";
   };
 
-  const getPersonalDetails = (app: Application) => {
+  const getPersonalDetails = (app: ApplicationDoc) => {
     try {
       return app.personalDetails ? JSON.parse(app.personalDetails) : {};
     } catch {
@@ -100,27 +100,29 @@ export default function ApplicationsList() {
   const filteredApplications = applications.filter((app) => {
     const personalDetails = getPersonalDetails(app);
     const courseName = getCourseName(app.courseId);
-    
+
     const studentName = getStudentName(personalDetails);
     const matchesSearch =
       studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (personalDetails.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       courseName.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || app.status === statusFilter;
+
+    const matchesStatus =
+      statusFilter === "all" || app.status === statusFilter;
+
     return matchesSearch && matchesStatus;
   });
 
-  const handleApprove = (id: string) => {
-    updateStatusMutation.mutate({ id, status: "approved" });
+  const handleApprove = (_id: string) => {
+    updateStatusMutation.mutate({ _id, status: "approved" });
   };
 
-  const handleReject = (id: string) => {
-    updateStatusMutation.mutate({ id, status: "rejected" });
+  const handleReject = (_id: string) => {
+    updateStatusMutation.mutate({ _id, status: "rejected" });
   };
 
-  const handleViewDetails = (appId: string) => {
-    navigate(`/admin/applications/${appId}`);
+  const handleViewDetails = (_id: string) => {
+    navigate(`/admin/applications/${_id}`);
   };
 
   return (
@@ -128,7 +130,9 @@ export default function ApplicationsList() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-medium">Applications</h1>
-          <p className="text-muted-foreground">Review and manage student applications</p>
+          <p className="text-muted-foreground">
+            Review and manage student applications
+          </p>
         </div>
 
         <Card>
@@ -141,11 +145,11 @@ export default function ApplicationsList() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
-                  data-testid="input-search"
                 />
               </div>
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full md:w-48" data-testid="select-filter">
+                <SelectTrigger className="w-full md:w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -157,9 +161,12 @@ export default function ApplicationsList() {
               </Select>
             </div>
           </CardHeader>
+
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading applications...</div>
+              <div className="text-center py-8 text-muted-foreground">
+                Loading applications...
+              </div>
             ) : (
               <>
                 <Table>
@@ -173,24 +180,31 @@ export default function ApplicationsList() {
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
+
                   <TableBody>
                     {filteredApplications.map((app) => {
                       const personalDetails = getPersonalDetails(app);
+
                       return (
-                        <TableRow key={app.id}>
-                          <TableCell className="font-medium" data-testid={`cell-student-${app.id}`}>
+                        <TableRow key={app._id}>
+                          <TableCell className="font-medium">
                             {getStudentName(personalDetails)}
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {personalDetails.email || "N/A"}
                           </TableCell>
-                          <TableCell>{getCourseName(app.courseId)}</TableCell>
+                          <TableCell>
+                            {getCourseName(app.courseId)}
+                          </TableCell>
                           <TableCell className="text-muted-foreground">
-                            {app.submittedAt ? format(new Date(app.submittedAt), "MMM dd, yyyy") : "N/A"}
+                            {app.submittedAt
+                              ? format(new Date(app.submittedAt), "MMM dd, yyyy")
+                              : "N/A"}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={getStatusVariant(app.status)} data-testid={`badge-status-${app.id}`}>
-                              {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                            <Badge variant={getStatusVariant(app.status)}>
+                              {app.status.charAt(0).toUpperCase() +
+                                app.status.slice(1)}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -198,18 +212,17 @@ export default function ApplicationsList() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleViewDetails(app.id)}
-                                data-testid={`button-view-${app.id}`}
+                                onClick={() => handleViewDetails(app._id)}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
+
                               {app.status === "pending" && (
                                 <>
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => handleApprove(app.id)}
-                                    data-testid={`button-approve-${app.id}`}
+                                    onClick={() => handleApprove(app._id)}
                                     disabled={updateStatusMutation.isPending}
                                   >
                                     <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -217,8 +230,7 @@ export default function ApplicationsList() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => handleReject(app.id)}
-                                    data-testid={`button-reject-${app.id}`}
+                                    onClick={() => handleReject(app._id)}
                                     disabled={updateStatusMutation.isPending}
                                   >
                                     <XCircle className="h-4 w-4 text-destructive" />
@@ -235,7 +247,9 @@ export default function ApplicationsList() {
 
                 {filteredApplications.length === 0 && (
                   <div className="text-center py-12">
-                    <p className="text-muted-foreground">No applications found</p>
+                    <p className="text-muted-foreground">
+                      No applications found
+                    </p>
                   </div>
                 )}
               </>
